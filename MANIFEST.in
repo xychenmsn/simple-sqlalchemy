@@ -1,0 +1,19 @@
+include README.md
+include LICENSE
+include requirements.txt
+include pyproject.toml
+include MANIFEST.in
+
+recursive-include simple_sqlalchemy *.py
+recursive-include simple_sqlalchemy py.typed
+
+exclude .gitignore
+exclude .pre-commit-config.yaml
+recursive-exclude * __pycache__
+recursive-exclude * *.py[co]
+recursive-exclude * *.pyo
+recursive-exclude * *.pyd
+recursive-exclude * .DS_Store
+recursive-exclude tests *
+recursive-exclude docs *
+recursive-exclude .github *
