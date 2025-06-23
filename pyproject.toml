@@ -7,7 +7,7 @@ name = "simple-sqlalchemy"
 version = "0.1.0"
 description = "A simplified, enhanced SQLAlchemy package with common patterns and utilities"
 readme = "README.md"
-license = {text = "MIT"}
+license = "MIT"
 authors = [
     {name = "Simple SQLAlchemy Contributors", email = "contributors@simple-sqlalchemy.dev"}
 ]
@@ -18,7 +18,6 @@ keywords = ["sqlalchemy", "orm", "database", "crud", "pagination", "search"]
 classifiers = [
     "Development Status :: 4 - Beta",
     "Intended Audience :: Developers",
-    "License :: OSI Approved :: MIT License",
     "Operating System :: OS Independent",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.8",
@@ -62,7 +61,7 @@ Repository = "https://github.com/simple-sqlalchemy/simple-sqlalchemy"
 "Bug Tracker" = "https://github.com/simple-sqlalchemy/simple-sqlalchemy/issues"
 
 [tool.setuptools]
-packages = ["simple_sqlalchemy"]
+packages = ["simple_sqlalchemy", "simple_sqlalchemy.helpers", "simple_sqlalchemy.postgres"]
 
 [tool.setuptools.package-data]
 simple_sqlalchemy = ["py.typed"]
