@@ -3,3 +3,7 @@ pytest>=7.0.0
 pytest-cov>=4.0.0
 pytest-xdist>=3.0.0  # For parallel test execution
 pytest-mock>=3.10.0  # For mocking
+psutil>=5.9.0  # For memory usage testing
+
+# Optional dependencies for string-schema integration tests
+string-schema>=0.1.0  # For string-schema integration tests

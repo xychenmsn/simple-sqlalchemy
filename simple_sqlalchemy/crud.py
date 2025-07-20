@@ -667,3 +667,193 @@ class BaseCrud(Generic[ModelType]):
             # Restore records
             result = query.update({"deleted_at": None}, synchronize_session=False)
             return result
+
+    # ===== String Schema Integration =====
+
+    def _get_string_schema_helper(self):
+        """Get or create string schema helper for this model."""
+        if not hasattr(self, '_string_schema_helper'):
+            try:
+                from .helpers.string_schema import StringSchemaHelper
+                self._string_schema_helper = StringSchemaHelper(self.db_client, self.model)
+            except ImportError:
+                raise ImportError(
+                    "string-schema is required for schema-based operations. "
+                    "Install with: pip install string-schema"
+                )
+        return self._string_schema_helper
+
+    def query_with_schema(
+        self,
+        schema_str: str,
+        filters: Optional[Dict] = None,
+        search_query: Optional[str] = None,
+        search_fields: Optional[List[str]] = None,
+        sort_by: str = "id",
+        sort_desc: bool = False,
+        limit: Optional[int] = None,
+        skip: int = 0,
+        include_relationships: Optional[List[str]] = None,
+        include_deleted: bool = False
+    ) -> List[Dict[str, Any]]:
+        """
+        Query database and return results validated against string schema.
+
+        This method provides a schema-first approach to database queries,
+        automatically validating results against string-schema definitions.
+
+        Args:
+            schema_str: String schema definition (e.g., "id:int, name:string, email:email")
+                       or predefined schema name ("basic", "full")
+            filters: Dictionary of field filters
+            search_query: Text search query
+            search_fields: Fields to search in
+            sort_by: Field to sort by
+            sort_desc: Sort descending if True
+            limit: Maximum number of results
+            skip: Number of results to skip
+            include_relationships: List of relationship names to eager load
+            include_deleted: Include soft-deleted records
+
+        Returns:
+            List of dictionaries matching the schema
+
+        Example:
+            # Using predefined schema
+            articles = article_ops.query_with_schema("basic", filters={"category_id": 1})
+
+            # Using custom schema
+            articles = article_ops.query_with_schema(
+                "id:int, title:string, created_at:datetime",
+                search_query="AI",
+                search_fields=["title", "body"]
+            )
+        """
+        helper = self._get_string_schema_helper()
+        return helper.query_with_schema(
+            schema_str=schema_str,
+            filters=filters,
+            search_query=search_query,
+            search_fields=search_fields,
+            sort_by=sort_by,
+            sort_desc=sort_desc,
+            limit=limit,
+            skip=skip,
+            include_relationships=include_relationships,
+            include_deleted=include_deleted
+        )
+
+    def paginated_query_with_schema(
+        self,
+        schema_str: str,
+        page: int = 1,
+        per_page: int = 10,
+        **kwargs
+    ) -> Dict[str, Any]:
+        """
+        Paginated query with string schema validation.
+
+        Provides paginated results with automatic schema validation,
+        eliminating the need for separate response models.
+
+        Args:
+            schema_str: String schema definition or predefined schema name
+            page: Page number (1-based)
+            per_page: Number of items per page
+            **kwargs: Additional arguments for query_with_schema
+
+        Returns:
+            Dictionary with items and pagination info, all validated against schemas
+
+        Example:
+            result = article_ops.paginated_query_with_schema(
+                "id:int, title:string, body:text, created_at:datetime",
+                page=1,
+                per_page=20,
+                filters={"category_id": 1},
+                search_query="technology",
+                search_fields=["title", "body"]
+            )
+            # Returns: {
+            #   "items": [...],
+            #   "total": 100,
+            #   "page": 1,
+            #   "per_page": 20,
+            #   "has_next": true,
+            #   ...
+            # }
+        """
+        helper = self._get_string_schema_helper()
+        return helper.paginated_query_with_schema(
+            schema_str=schema_str,
+            page=page,
+            per_page=per_page,
+            **kwargs
+        )
+
+    def aggregate_with_schema(
+        self,
+        aggregations: Dict[str, str],
+        schema_str: str,
+        group_by: Optional[List[str]] = None,
+        filters: Optional[Dict] = None,
+        include_deleted: bool = False
+    ) -> List[Dict[str, Any]]:
+        """
+        Perform aggregation queries with schema validation.
+
+        Args:
+            aggregations: Dict of {alias: "function(field)"}
+                         e.g., {"count": "count(*)", "avg_size": "avg(size)"}
+            schema_str: Schema to validate results against
+            group_by: List of fields to group by
+            filters: Filters to apply
+            include_deleted: Include soft-deleted records
+
+        Returns:
+            List of aggregation results as dictionaries
+
+        Example:
+            stats = article_ops.aggregate_with_schema(
+                aggregations={"total": "count(*)", "avg_length": "avg(length)"},
+                schema_str="category_id:int, total:int, avg_length:number",
+                group_by=["category_id"],
+                filters={"published": True}
+            )
+        """
+        helper = self._get_string_schema_helper()
+        return helper.aggregate_with_schema(
+            aggregations=aggregations,
+            schema_str=schema_str,
+            group_by=group_by,
+            filters=filters,
+            include_deleted=include_deleted
+        )
+
+    def add_schema(self, name: str, schema: str):
+        """
+        Add a custom schema definition for this model.
+
+        Args:
+            name: Schema name for later reference
+            schema: String schema definition
+
+        Example:
+            article_ops.add_schema("summary", "id:int, title:string, summary:text?")
+            articles = article_ops.query_with_schema("summary")
+        """
+        helper = self._get_string_schema_helper()
+        helper.add_custom_schema(name, schema)
+
+    def get_schema(self, name: str) -> str:
+        """
+        Get a predefined schema by name.
+
+        Args:
+            name: Schema name
+
+        Returns:
+            Schema definition string
+        """
+        helper = self._get_string_schema_helper()
+        return helper.get_schema(name)

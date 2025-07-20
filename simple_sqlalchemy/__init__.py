@@ -18,23 +18,30 @@ from .helpers.m2m import M2MHelper
 from .helpers.search import SearchHelper
 from .helpers.pagination import PaginationHelper
 
+# Optional string-schema helper
+try:
+    from .helpers.string_schema import StringSchemaHelper
+    __all_string_schema = ["StringSchemaHelper"]
+except ImportError:
+    __all_string_schema = []
+
 __all__ = [
     # Core classes
     "DbClient",
-    "BaseCrud", 
+    "BaseCrud",
     "CommonBase",
     "SoftDeleteMixin",
     "metadata_obj",
-    
+
     # Session utilities
     "session_scope",
     "detach_object",
-    
+
     # Helpers
     "M2MHelper",
-    "SearchHelper", 
+    "SearchHelper",
     "PaginationHelper",
-]
+] + __all_string_schema
 
 # PostgreSQL-specific imports (optional)
 try:
