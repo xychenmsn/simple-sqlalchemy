@@ -7,8 +7,8 @@ schema-first database queries with automatic validation and response formatting.
 
 import logging
 from typing import Dict, Any, List, Optional, Type, TypeVar, Union
-from sqlalchemy.orm import selectinload, joinedload
-from sqlalchemy import and_, or_, func, desc, asc
+from sqlalchemy.orm import selectinload, joinedload, Session, Query
+from sqlalchemy import and_, or_, func, desc, asc, inspect
 
 try:
     from string_schema import validate_to_dict, string_to_json_schema, string_to_model
@@ -16,7 +16,7 @@ try:
 except ImportError:
     HAS_STRING_SCHEMA = False
 
-from .pagination import PaginationHelper
+from .pagination import validate_pagination_params, build_pagination_response
 
 logger = logging.getLogger(__name__)
 
@@ -85,6 +85,10 @@ class StringSchemaHelper:
                     field_type = "number"
                 elif python_type == bool:
                     field_type = "bool"
+                elif python_type == dict:
+                    field_type = "string"  # JSON fields are serialized as strings
+                elif python_type == list:
+                    field_type = "string"  # JSON arrays are serialized as strings
                 elif python_type == str:
                     if "email" in field_name.lower():
                         field_type = "email"
@@ -108,7 +112,7 @@ class StringSchemaHelper:
                 elif "datetime" in column_type_str or "timestamp" in column_type_str:
                     field_type = "datetime"
                 elif "json" in column_type_str:
-                    field_type = "dict"  # Use dict for JSON fields
+                    field_type = "string"  # JSON fields are serialized as strings
                 elif "text" in column_type_str:
                     field_type = "text"
                 else:
@@ -121,7 +125,182 @@ class StringSchemaHelper:
             fields.append(f"{field_name}:{field_type}")
         
         return ", ".join(fields)
-    
+
+    def _apply_filters(self, query: Query, filters: Optional[Dict]) -> Query:
+        """
+        Apply filters to a SQLAlchemy query.
+
+        Args:
+            query: SQLAlchemy Query object
+            filters: Dictionary of field filters
+
+        Returns:
+            Query object with filters applied
+        """
+        if not filters:
+            return query
+
+        for field, value in filters.items():
+            if hasattr(self.model, field):
+                field_attr = getattr(self.model, field)
+                if isinstance(value, list):
+                    query = query.filter(field_attr.in_(value))
+                elif value is None:
+                    query = query.filter(field_attr.is_(None))
+                elif isinstance(value, dict) and value.get('not') is None:
+                    query = query.filter(field_attr.is_not(None))
+                else:
+                    query = query.filter(field_attr == value)
+
+        return query
+
+    def _apply_search(self, query: Query, search_query: Optional[str], search_fields: Optional[List[str]]) -> Query:
+        """
+        Apply text search to a SQLAlchemy query.
+
+        Args:
+            query: SQLAlchemy Query object
+            search_query: Text search query
+            search_fields: Fields to search in
+
+        Returns:
+            Query object with search applied
+        """
+        if not search_query or not search_fields:
+            return query
+
+        search_conditions = []
+        for field in search_fields:
+            if hasattr(self.model, field):
+                search_conditions.append(
+                    getattr(self.model, field).ilike(f"%{search_query}%")
+                )
+
+        if search_conditions:
+            query = query.filter(or_(*search_conditions))
+
+        return query
+
+    def _apply_soft_delete_filter(self, query: Query, include_deleted: bool = False) -> Query:
+        """
+        Apply soft delete filtering to a SQLAlchemy query.
+
+        Args:
+            query: SQLAlchemy Query object
+            include_deleted: Whether to include soft-deleted records
+
+        Returns:
+            Query object with soft delete filter applied
+        """
+        if hasattr(self.model, 'deleted_at') and not include_deleted:
+            query = query.filter(self.model.deleted_at.is_(None))
+
+        return query
+
+    def _apply_sorting(self, query: Query, sort_by: str = "id", sort_desc: bool = False) -> Query:
+        """
+        Apply sorting to a SQLAlchemy query.
+
+        Args:
+            query: SQLAlchemy Query object
+            sort_by: Field to sort by
+            sort_desc: Sort descending if True
+
+        Returns:
+            Query object with sorting applied
+        """
+        if hasattr(self.model, sort_by):
+            sort_field = getattr(self.model, sort_by)
+            if sort_desc:
+                query = query.order_by(desc(sort_field))
+            else:
+                query = query.order_by(asc(sort_field))
+
+        return query
+
+    def _apply_pagination(self, query: Query, limit: Optional[int] = None, skip: int = 0) -> Query:
+        """
+        Apply pagination to a SQLAlchemy query.
+
+        Args:
+            query: SQLAlchemy Query object
+            limit: Maximum number of results
+            skip: Number of results to skip
+
+        Returns:
+            Query object with pagination applied
+        """
+        if skip > 0:
+            query = query.offset(skip)
+        if limit is not None:
+            query = query.limit(limit)
+
+        return query
+
+    def _apply_eager_loading(self, query: Query, include_relationships: Optional[List[str]]) -> Query:
+        """
+        Apply eager loading for relationships to a SQLAlchemy query.
+
+        Args:
+            query: SQLAlchemy Query object
+            include_relationships: List of relationship names to eager load
+
+        Returns:
+            Query object with eager loading applied
+        """
+        if include_relationships:
+            for rel in include_relationships:
+                if hasattr(self.model, rel):
+                    query = query.options(selectinload(getattr(self.model, rel)))
+
+        return query
+
+    def _build_base_query(
+        self,
+        session: Session,
+        filters: Optional[Dict] = None,
+        search_query: Optional[str] = None,
+        search_fields: Optional[List[str]] = None,
+        sort_by: str = "id",
+        sort_desc: bool = False,
+        limit: Optional[int] = None,
+        skip: int = 0,
+        include_relationships: Optional[List[str]] = None,
+        include_deleted: bool = False
+    ) -> Query:
+        """
+        Build a complete SQLAlchemy query with all common operations applied.
+
+        This is the core DRY method that combines all query building operations.
+
+        Args:
+            session: SQLAlchemy session
+            filters: Dictionary of field filters
+            search_query: Text search query
+            search_fields: Fields to search in
+            sort_by: Field to sort by
+            sort_desc: Sort descending if True
+            limit: Maximum number of results
+            skip: Number of results to skip
+            include_relationships: List of relationship names to eager load
+            include_deleted: Include soft-deleted records
+
+        Returns:
+            Complete SQLAlchemy Query object
+        """
+        # Start with base query
+        query = session.query(self.model)
+
+        # Apply all operations in logical order
+        query = self._apply_eager_loading(query, include_relationships)
+        query = self._apply_filters(query, filters)
+        query = self._apply_search(query, search_query, search_fields)
+        query = self._apply_soft_delete_filter(query, include_deleted)
+        query = self._apply_sorting(query, sort_by, sort_desc)
+        query = self._apply_pagination(query, limit, skip)
+
+        return query
+
     def query_with_schema(
         self,
         schema_str: str,
@@ -156,56 +335,23 @@ class StringSchemaHelper:
         schema = self._resolve_schema(schema_str)
         
         with self.db_client.session_scope() as session:
-            # Build base query
-            query = session.query(self.model)
-            
-            # Add eager loading for relationships
-            if include_relationships:
-                for rel in include_relationships:
-                    if hasattr(self.model, rel):
-                        query = query.options(selectinload(getattr(self.model, rel)))
-            
-            # Apply filters
-            if filters:
-                for field, value in filters.items():
-                    if hasattr(self.model, field):
-                        field_attr = getattr(self.model, field)
-                        if isinstance(value, list):
-                            query = query.filter(field_attr.in_(value))
-                        elif value is None:
-                            query = query.filter(field_attr.is_(None))
-                        else:
-                            query = query.filter(field_attr == value)
-            
-            # Apply search
-            if search_query and search_fields:
-                search_conditions = []
-                for field in search_fields:
-                    if hasattr(self.model, field):
-                        search_conditions.append(
-                            getattr(self.model, field).ilike(f"%{search_query}%")
-                        )
-                if search_conditions:
-                    query = query.filter(or_(*search_conditions))
-            
-            # Handle soft delete
-            if hasattr(self.model, 'deleted_at') and not include_deleted:
-                query = query.filter(self.model.deleted_at.is_(None))
-            
-            # Apply sorting
-            if hasattr(self.model, sort_by):
-                sort_field = getattr(self.model, sort_by)
-                query = query.order_by(desc(sort_field) if sort_desc else asc(sort_field))
-            
-            # Apply pagination
-            if skip > 0:
-                query = query.offset(skip)
-            if limit:
-                query = query.limit(limit)
-            
+            # Build complete query using DRY helper
+            query = self._build_base_query(
+                session=session,
+                filters=filters,
+                search_query=search_query,
+                search_fields=search_fields,
+                sort_by=sort_by,
+                sort_desc=sort_desc,
+                limit=limit,
+                skip=skip,
+                include_relationships=include_relationships,
+                include_deleted=include_deleted
+            )
+
             # Execute query
             results = query.all()
-            
+
             # Convert to dictionaries and validate against schema
             return [self._model_to_dict_with_schema(result, schema) for result in results]
     
@@ -229,44 +375,30 @@ class StringSchemaHelper:
             Dictionary with items and pagination info, validated against schemas
         """
         # Validate pagination parameters
-        page, per_page = PaginationHelper.validate_pagination_params(
+        from .pagination import validate_pagination_params
+        page, per_page = validate_pagination_params(
             page=page, per_page=per_page, max_per_page=1000, default_per_page=10
         )
         
         # Calculate skip
         skip = (page - 1) * per_page
         
-        # Get total count for pagination
+        # Get total count for pagination using DRY helper
         with self.db_client.session_scope() as session:
-            count_query = session.query(self.model)
-            
-            # Apply same filters as main query for accurate count
-            if kwargs.get('filters'):
-                for field, value in kwargs['filters'].items():
-                    if hasattr(self.model, field):
-                        field_attr = getattr(self.model, field)
-                        if isinstance(value, list):
-                            count_query = count_query.filter(field_attr.in_(value))
-                        elif value is None:
-                            count_query = count_query.filter(field_attr.is_(None))
-                        else:
-                            count_query = count_query.filter(field_attr == value)
-            
-            # Apply search filters to count
-            if kwargs.get('search_query') and kwargs.get('search_fields'):
-                search_conditions = []
-                for field in kwargs['search_fields']:
-                    if hasattr(self.model, field):
-                        search_conditions.append(
-                            getattr(self.model, field).ilike(f"%{kwargs['search_query']}%")
-                        )
-                if search_conditions:
-                    count_query = count_query.filter(or_(*search_conditions))
-            
-            # Handle soft delete in count
-            if hasattr(self.model, 'deleted_at') and not kwargs.get('include_deleted', False):
-                count_query = count_query.filter(self.model.deleted_at.is_(None))
-            
+            # Build count query with same filters but no pagination/sorting
+            count_query = self._build_base_query(
+                session=session,
+                filters=kwargs.get('filters'),
+                search_query=kwargs.get('search_query'),
+                search_fields=kwargs.get('search_fields'),
+                include_deleted=kwargs.get('include_deleted', False),
+                # No pagination, sorting, or relationships for count
+                limit=None,
+                skip=0,
+                sort_by="id",
+                include_relationships=None
+            )
+
             total = count_query.count()
         
         # Get items
@@ -278,12 +410,12 @@ class StringSchemaHelper:
         )
         
         # Build pagination response
-        response = PaginationHelper.build_pagination_response(
+        response = build_pagination_response(
             items=items,
             page=page,
             per_page=per_page,
             total=total,
-            include_pagination_info=True
+            include_navigation=True
         )
 
         # Return response directly (items are already validated by query_with_schema)
@@ -350,21 +482,9 @@ class StringSchemaHelper:
             
             query = session.query(*select_items)
             
-            # Apply filters
-            if filters:
-                for field, value in filters.items():
-                    if hasattr(self.model, field):
-                        field_attr = getattr(self.model, field)
-                        if isinstance(value, list):
-                            query = query.filter(field_attr.in_(value))
-                        elif value is None:
-                            query = query.filter(field_attr.is_(None))
-                        else:
-                            query = query.filter(field_attr == value)
-            
-            # Handle soft delete
-            if hasattr(self.model, 'deleted_at') and not include_deleted:
-                query = query.filter(self.model.deleted_at.is_(None))
+            # Apply filters and soft delete using DRY helpers
+            query = self._apply_filters(query, filters)
+            query = self._apply_soft_delete_filter(query, include_deleted)
             
             # Apply group by
             if group_by:
@@ -391,12 +511,31 @@ class StringSchemaHelper:
     
     def _model_to_dict_with_schema(self, model_instance, schema: str) -> Dict[str, Any]:
         """Convert SQLAlchemy model instance to dictionary and validate against schema."""
+        from datetime import datetime, date
+
         # Convert model to dictionary
         model_dict = {}
-        
-        # Get basic attributes
+
+        # Get basic attributes with proper type conversion
         for column in model_instance.__table__.columns:
-            model_dict[column.name] = getattr(model_instance, column.name)
+            value = getattr(model_instance, column.name)
+
+            # Convert datetime objects to ISO format strings for schema validation
+            if isinstance(value, (datetime, date)):
+                value = value.isoformat()
+            # Handle JSON fields - convert to JSON strings for schema validation
+            elif hasattr(column.type, 'python_type') and str(column.type).lower().startswith('json'):
+                # JSON fields should be serialized to strings for schema validation
+                if value is not None:
+                    import json
+                    value = json.dumps(value)
+            elif 'json' in str(column.type).lower():
+                # Fallback for JSON detection
+                if value is not None:
+                    import json
+                    value = json.dumps(value)
+
+            model_dict[column.name] = value
         
         # Get relationship attributes if they're loaded (avoid lazy loading)
         for rel_name in model_instance.__mapper__.relationships.keys():

@@ -1,0 +1,58 @@
+/* Custom CSS for Simple SQLAlchemy documentation */
+
+/* Improve code block styling */
+.highlight {
+    background: #f8f9fa !important;
+    border: 1px solid #e9ecef;
+    border-radius: 4px;
+    padding: 1em;
+    margin: 1em 0;
+}
+
+/* Better table styling */
+.wy-table-responsive table td, .wy-table-responsive table th {
+    white-space: normal !important;
+}
+
+/* Improve admonition styling */
+.admonition {
+    margin: 1em 0;
+    padding: 1em;
+    border-radius: 4px;
+}
+
+.admonition.note {
+    background-color: #e7f3ff;
+    border-left: 4px solid #2196f3;
+}
+
+.admonition.warning {
+    background-color: #fff3cd;
+    border-left: 4px solid #ffc107;
+}
+
+.admonition.tip {
+    background-color: #d4edda;
+    border-left: 4px solid #28a745;
+}
+
+/* Better spacing for method signatures */
+.py.method dt, .py.function dt {
+    background-color: #f8f9fa;
+    border: 1px solid #e9ecef;
+    border-radius: 4px;
+    padding: 0.5em;
+    margin-bottom: 0.5em;
+}
+
+/* Improve navigation */
+.wy-nav-content {
+    max-width: 1200px;
+}
+
+/* Better mobile responsiveness */
+@media screen and (max-width: 768px) {
+    .wy-nav-content {
+        margin-left: 0;
+    }
+}

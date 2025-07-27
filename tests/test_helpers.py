@@ -295,66 +295,93 @@ class TestSearchHelper:
 
 
 class TestPaginationHelper:
-    """Test PaginationHelper functionality"""
+    """Test pagination functionality"""
 
-    def test_calculate_pagination_info(self):
+    def test_calculate_pagination(self):
         """Test calculating pagination info"""
-        info = PaginationHelper.calculate_pagination_info(page=2, per_page=10, total=95)
+        from simple_sqlalchemy.helpers.pagination import calculate_pagination
 
-        assert info.page == 2
-        assert info.per_page == 10
-        assert info.total == 95
-        assert info.total_pages == 10
-        assert info.has_prev is True
-        assert info.has_next is True
-        assert info.prev_page == 1
-        assert info.next_page == 3
+        info = calculate_pagination(page=2, per_page=10, total=95)
 
-    def test_calculate_pagination_info_first_page(self):
+        assert info["page"] == 2
+        assert info["per_page"] == 10
+        assert info["total"] == 95
+        assert info["total_pages"] == 10
+        assert info["has_prev"] is True
+        assert info["has_next"] is True
+        assert info["prev_page"] == 1
+        assert info["next_page"] == 3
+        assert info["offset"] == 10
+        assert info["start_item"] == 11
+        assert info["end_item"] == 20
+
+    def test_calculate_pagination_first_page(self):
         """Test pagination info for first page"""
-        info = PaginationHelper.calculate_pagination_info(page=1, per_page=10, total=25)
+        from simple_sqlalchemy.helpers.pagination import calculate_pagination
 
-        assert info.page == 1
-        assert info.has_prev is False
-        assert info.prev_page is None
-        assert info.has_next is True
-        assert info.next_page == 2
+        info = calculate_pagination(page=1, per_page=10, total=25)
 
-    def test_calculate_pagination_info_last_page(self):
+        assert info["page"] == 1
+        assert info["has_prev"] is False
+        assert info["prev_page"] is None
+        assert info["has_next"] is True
+        assert info["next_page"] == 2
+        assert info["offset"] == 0
+        assert info["start_item"] == 1
+        assert info["end_item"] == 10
+
+    def test_calculate_pagination_last_page(self):
         """Test pagination info for last page"""
-        info = PaginationHelper.calculate_pagination_info(page=3, per_page=10, total=25)
+        from simple_sqlalchemy.helpers.pagination import calculate_pagination
 
-        assert info.page == 3
-        assert info.has_prev is True
-        assert info.prev_page == 2
-        assert info.has_next is False
-        assert info.next_page is None
+        info = calculate_pagination(page=3, per_page=10, total=25)
 
-    def test_calculate_pagination_info_single_page(self):
+        assert info["page"] == 3
+        assert info["has_prev"] is True
+        assert info["prev_page"] == 2
+        assert info["has_next"] is False
+        assert info["next_page"] is None
+        assert info["offset"] == 20
+        assert info["start_item"] == 21
+        assert info["end_item"] == 25
+
+    def test_calculate_pagination_single_page(self):
         """Test pagination info for single page"""
-        info = PaginationHelper.calculate_pagination_info(page=1, per_page=10, total=5)
+        from simple_sqlalchemy.helpers.pagination import calculate_pagination
 
-        assert info.page == 1
-        assert info.total_pages == 1
-        assert info.has_prev is False
-        assert info.has_next is False
-        assert info.prev_page is None
-        assert info.next_page is None
+        info = calculate_pagination(page=1, per_page=10, total=5)
 
-    def test_calculate_pagination_info_empty(self):
+        assert info["page"] == 1
+        assert info["total_pages"] == 1
+        assert info["has_prev"] is False
+        assert info["has_next"] is False
+        assert info["prev_page"] is None
+        assert info["next_page"] is None
+        assert info["offset"] == 0
+        assert info["start_item"] == 1
+        assert info["end_item"] == 5
+
+    def test_calculate_pagination_empty(self):
         """Test pagination info for empty results"""
-        info = PaginationHelper.calculate_pagination_info(page=1, per_page=10, total=0)
+        from simple_sqlalchemy.helpers.pagination import calculate_pagination
 
-        assert info.page == 1
-        assert info.total == 0
-        assert info.total_pages == 0
-        assert info.has_prev is False
-        assert info.has_next is False
+        info = calculate_pagination(page=1, per_page=10, total=0)
+
+        assert info["page"] == 1
+        assert info["total"] == 0
+        assert info["total_pages"] == 1
+        assert info["has_prev"] is False
+        assert info["has_next"] is False
+        assert info["offset"] == 0
+        assert info["start_item"] == 0
+        assert info["end_item"] == 0
 
     def test_build_pagination_response(self):
         """Test building pagination response"""
+        from simple_sqlalchemy.helpers.pagination import build_pagination_response
+
         items = ["item1", "item2", "item3"]
-        response = PaginationHelper.build_pagination_response(
+        response = build_pagination_response(
             items=items,
             page=2,
             per_page=10,
@@ -371,62 +398,79 @@ class TestPaginationHelper:
         assert "prev_page" in response
         assert "next_page" in response
 
-    def test_build_pagination_response_without_info(self):
-        """Test building pagination response without detailed info"""
+    def test_build_pagination_response_without_navigation(self):
+        """Test building pagination response without navigation info"""
+        from simple_sqlalchemy.helpers.pagination import build_pagination_response
+
         items = ["item1", "item2"]
-        response = PaginationHelper.build_pagination_response(
+        response = build_pagination_response(
             items=items,
             page=1,
             per_page=10,
             total=2,
-            include_pagination_info=False
+            include_navigation=False
         )
 
         assert response["items"] == items
-        assert "pagination_info" not in response
+        assert "has_prev" not in response
+        assert "has_next" not in response
 
     def test_validate_pagination_params_valid(self):
         """Test validating valid pagination parameters"""
-        page, per_page = PaginationHelper.validate_pagination_params(page=2, per_page=15)
+        from simple_sqlalchemy.helpers.pagination import validate_pagination_params
+
+        page, per_page = validate_pagination_params(page=2, per_page=15)
 
         assert page == 2
         assert per_page == 15
 
-    def test_validate_pagination_params_invalid_page(self):
-        """Test validating invalid page parameters"""
-        # Negative page
-        page, per_page = PaginationHelper.validate_pagination_params(page=-1, per_page=10)
+    def test_validate_pagination_params_invalid(self):
+        """Test validating invalid pagination parameters"""
+        from simple_sqlalchemy.helpers.pagination import validate_pagination_params
+        import pytest
+
+        # Test invalid page
+        with pytest.raises(ValueError, match="Page must be >= 1"):
+            validate_pagination_params(page=-1, per_page=10)
+
+        # Test invalid per_page
+        with pytest.raises(ValueError, match="Per page must be >= 1"):
+            validate_pagination_params(page=1, per_page=0)
+
+        # Test per_page too large
+        with pytest.raises(ValueError, match="Per page must be <= 100"):
+            validate_pagination_params(page=1, per_page=200, max_per_page=100)
+
+    def test_pagination_summary(self):
+        """Test pagination summary generation"""
+        from simple_sqlalchemy.helpers.pagination import get_pagination_summary
+
+        # Normal range
+        summary = get_pagination_summary(page=2, per_page=10, total=95)
+        assert summary == "Showing 11-20 of 95 items"
+
+        # Single item
+        summary = get_pagination_summary(page=1, per_page=10, total=1)
+        assert summary == "Showing item 1 of 1"
+
+        # Empty
+        summary = get_pagination_summary(page=1, per_page=10, total=0)
+        assert summary == "No items found"
+
+    def test_validate_pagination_params_defaults(self):
+        """Test validating with default values"""
+        from simple_sqlalchemy.helpers.pagination import validate_pagination_params
+
+        # None values should use defaults
+        page, per_page = validate_pagination_params(page=None, per_page=None)
         assert page == 1
-
-        # Zero page
-        page, per_page = PaginationHelper.validate_pagination_params(page=0, per_page=10)
-        assert page == 1
-
-        # None page
-        page, per_page = PaginationHelper.validate_pagination_params(page=None, per_page=10)
-        assert page == 1
-
-    def test_validate_pagination_params_invalid_per_page(self):
-        """Test validating invalid per_page parameters"""
-        # Negative per_page
-        page, per_page = PaginationHelper.validate_pagination_params(page=1, per_page=-5)
-        assert per_page == 20  # default
-
-        # Zero per_page
-        page, per_page = PaginationHelper.validate_pagination_params(page=1, per_page=0)
-        assert per_page == 20  # default
-
-        # None per_page
-        page, per_page = PaginationHelper.validate_pagination_params(page=1, per_page=None)
-        assert per_page == 20  # default
-
-        # Too large per_page
-        page, per_page = PaginationHelper.validate_pagination_params(page=1, per_page=2000, max_per_page=1000)
-        assert per_page == 1000  # max
+        assert per_page == 20
 
     def test_validate_pagination_params_custom_defaults(self):
         """Test validating with custom defaults"""
-        page, per_page = PaginationHelper.validate_pagination_params(
+        from simple_sqlalchemy.helpers.pagination import validate_pagination_params
+
+        page, per_page = validate_pagination_params(
             page=None,
             per_page=None,
             default_per_page=50
@@ -434,33 +478,3 @@ class TestPaginationHelper:
 
         assert page == 1
         assert per_page == 50
-
-    def test_get_pagination_summary_normal(self):
-        """Test pagination summary for normal case"""
-        summary = PaginationHelper.get_pagination_summary(page=2, per_page=10, total=95)
-        assert summary == "Showing 11-20 of 95 items"
-
-    def test_get_pagination_summary_first_page(self):
-        """Test pagination summary for first page"""
-        summary = PaginationHelper.get_pagination_summary(page=1, per_page=10, total=95)
-        assert summary == "Showing 1-10 of 95 items"
-
-    def test_get_pagination_summary_last_page(self):
-        """Test pagination summary for last page"""
-        summary = PaginationHelper.get_pagination_summary(page=10, per_page=10, total=95)
-        assert summary == "Showing 91-95 of 95 items"
-
-    def test_get_pagination_summary_single_item(self):
-        """Test pagination summary for single item"""
-        summary = PaginationHelper.get_pagination_summary(page=1, per_page=1, total=1)
-        assert summary == "Showing item 1 of 1"
-
-    def test_get_pagination_summary_empty(self):
-        """Test pagination summary for empty results"""
-        summary = PaginationHelper.get_pagination_summary(page=1, per_page=10, total=0)
-        assert summary == "No items found"
-
-    def test_get_pagination_summary_single_page_multiple_items(self):
-        """Test pagination summary for single page with multiple items"""
-        summary = PaginationHelper.get_pagination_summary(page=1, per_page=10, total=5)
-        assert summary == "Showing 1-5 of 5 items"

@@ -53,7 +53,8 @@ from simple_sqlalchemy.postgres import EmbeddingVector  # PostgreSQL-specific
 # These were typically created internally by DbClient
 
 # After (simple-sqlalchemy)
-from simple_sqlalchemy import M2MHelper, SearchHelper, PaginationHelper
+from simple_sqlalchemy import M2MHelper, SearchHelper
+from simple_sqlalchemy.helpers.pagination import calculate_pagination, build_pagination_response
 ```
 
 ## Code Changes
@@ -159,16 +160,28 @@ roles = user_roles.get_related_for_source(user_id)
 ### 3. Pagination Utilities
 
 ```python
-# New pagination helpers
-from simple_sqlalchemy import PaginationHelper
-
-pagination_info = PaginationHelper.calculate_pagination_info(
-    page=2, per_page=10, total=95
+# New pagination helpers (recommended approach)
+from simple_sqlalchemy.helpers.pagination import (
+    calculate_pagination, validate_pagination_params, build_pagination_response
 )
 
-response = PaginationHelper.build_pagination_response(
+# Single function calculates everything in O(1)
+pagination_info = calculate_pagination(page=2, per_page=10, total=95)
+print(f"SQL offset: {pagination_info['offset']}")  # All values included
+
+# Proper validation with error handling
+try:
+    page, per_page = validate_pagination_params(page, per_page)
+except ValueError as e:
+    return {"error": str(e)}
+
+response = build_pagination_response(
     items=users, page=2, per_page=10, total=95
 )
+
+# Legacy approach (still works but deprecated)
+from simple_sqlalchemy import PaginationHelper
+pagination_info = PaginationHelper.calculate_pagination_info(page=2, per_page=10, total=95)
 ```
 
 ### 4. PostgreSQL Utilities

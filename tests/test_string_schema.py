@@ -27,7 +27,7 @@ class TestStringSchemaIntegration:
         # Mock the string-schema import to fail
         with patch('simple_sqlalchemy.helpers.string_schema.HAS_STRING_SCHEMA', False):
             with pytest.raises(ImportError, match="string-schema is required"):
-                user_crud._get_string_schema_helper()
+                user_crud._get_schema_helper()
     
     @pytest.mark.skipif(
         not _has_string_schema(),
