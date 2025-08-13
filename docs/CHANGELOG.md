@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Automatic Timezone Handling**: All datetime fields in string-schema operations now automatically include UTC timezone information for consistent, timezone-aware API responses
 - Initial release of simple-sqlalchemy
 - Core database client with connection management
 - Generic CRUD operations with BaseCrud

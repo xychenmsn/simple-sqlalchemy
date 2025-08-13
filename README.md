@@ -57,6 +57,7 @@ user_id = user_crud.create({"name": "Alice", "email": "alice@example.com"})
 
 - **🎯 90% Convenience**: String-schema operations for common use cases
 - **🔧 10% Power**: Full SQLAlchemy access when you need it
+- **🌍 Timezone Aware**: Automatic UTC timezone handling for datetime fields
 - **📊 Enhanced Filtering**: null/not-null, comparisons, lists, ranges
 - **📄 Pagination**: Built-in pagination with metadata
 - **🔍 Search**: Text search across multiple fields

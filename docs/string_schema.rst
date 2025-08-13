@@ -31,7 +31,7 @@ Schema strings use a simple, intuitive syntax:
 - ``bool`` - Boolean values
 - ``email`` - Email addresses (validated)
 - ``url`` - URLs (validated)
-- ``datetime`` - Date and time values
+- ``datetime`` - Date and time values (automatically timezone-aware)
 - ``date`` - Date values
 
 **Optional Fields:**
@@ -75,6 +75,7 @@ Basic Queries
        sort_desc=True,
        limit=5
    )
+   # Returns: [{"id": 1, "name": "John", "created_at": "2025-08-13T12:22:13+00:00"}, ...]
 
 Enhanced Filtering
 ------------------
@@ -340,13 +341,17 @@ String-schema operations are optimized for performance:
 Best Practices
 --------------
 
-1. **Use string-schema for APIs**: Perfect for JSON responses
+1. **Use string-schema for APIs**: Perfect for JSON responses with automatic timezone handling
 2. **Define reusable schemas**: Avoid repeating schema definitions
 3. **Validate early**: Let schema validation catch type errors
 4. **Paginate large results**: Always use pagination for user-facing lists
 5. **Index filtered fields**: Add database indexes for performance
 6. **Handle JSON carefully**: Remember JSON fields are serialized as strings
 7. **Use optional fields**: Mark nullable fields as optional with ``?``
+
+.. note::
+   For advanced features like timezone handling, soft deletes, and performance optimization,
+   see the :doc:`advanced_features` documentation.
 
 Error Handling
 --------------

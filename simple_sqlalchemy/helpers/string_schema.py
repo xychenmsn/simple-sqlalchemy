@@ -6,6 +6,7 @@ schema-first database queries with automatic validation and response formatting.
 """
 
 import logging
+from datetime import datetime
 from typing import Dict, Any, List, Optional, Type, TypeVar, Union
 from sqlalchemy.orm import selectinload, joinedload, Session, Query
 from sqlalchemy import and_, or_, func, desc, asc, inspect
@@ -494,12 +495,17 @@ class StringSchemaHelper:
             
             results = query.all()
             
-            # Convert to dictionaries
+            # Convert to dictionaries with timezone-aware datetime handling
             result_dicts = []
             for result in results:
                 result_dict = {}
                 for i, item in enumerate(select_items):
-                    result_dict[item.name] = result[i]
+                    value = result[i]
+                    # Convert datetime objects to timezone-aware format
+                    if isinstance(value, datetime) and value.tzinfo is None:
+                        from datetime import timezone
+                        value = value.replace(tzinfo=timezone.utc)
+                    result_dict[item.name] = value
                 result_dicts.append(result_dict)
             
             # Validate against schema
@@ -522,6 +528,11 @@ class StringSchemaHelper:
 
             # Convert datetime objects to ISO format strings for schema validation
             if isinstance(value, (datetime, date)):
+                # Ensure timezone-aware datetime for proper API responses
+                if isinstance(value, datetime) and value.tzinfo is None:
+                    # Assume naive datetimes are UTC (common database practice)
+                    from datetime import timezone
+                    value = value.replace(tzinfo=timezone.utc)
                 value = value.isoformat()
             # Handle JSON fields - convert to JSON strings for schema validation
             elif hasattr(column.type, 'python_type') and str(column.type).lower().startswith('json'):
