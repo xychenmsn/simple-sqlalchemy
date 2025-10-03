@@ -535,13 +535,8 @@ class StringSchemaHelper:
                     value = value.replace(tzinfo=timezone.utc)
                 value = value.isoformat()
             # Handle JSON fields - convert to JSON strings for schema validation
-            elif hasattr(column.type, 'python_type') and str(column.type).lower().startswith('json'):
-                # JSON fields should be serialized to strings for schema validation
-                if value is not None:
-                    import json
-                    value = json.dumps(value)
             elif 'json' in str(column.type).lower():
-                # Fallback for JSON detection
+                # JSON fields should be serialized to strings for schema validation
                 if value is not None:
                     import json
                     value = json.dumps(value)
