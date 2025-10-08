@@ -150,6 +150,10 @@ class StringSchemaHelper:
                     query = query.filter(field_attr.is_(None))
                 elif isinstance(value, dict) and value.get('not') is None:
                     query = query.filter(field_attr.is_not(None))
+                elif isinstance(value, bool):
+                    # Special handling for boolean values to work with PostgreSQL
+                    # Use is_() for proper boolean comparison
+                    query = query.filter(field_attr.is_(value))
                 else:
                     query = query.filter(field_attr == value)
 
