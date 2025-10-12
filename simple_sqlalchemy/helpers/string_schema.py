@@ -206,20 +206,27 @@ class StringSchemaHelper:
         """
         Apply sorting to a SQLAlchemy query.
 
+        Supports multiple sort fields separated by comma.
+        Example: sort_by="updated_at,created_at" will sort by updated_at first, then created_at
+
         Args:
             query: SQLAlchemy Query object
-            sort_by: Field to sort by
-            sort_desc: Sort descending if True
+            sort_by: Field(s) to sort by (comma-separated for multiple fields)
+            sort_desc: Sort descending if True (applies to all fields)
 
         Returns:
             Query object with sorting applied
         """
-        if hasattr(self.model, sort_by):
-            sort_field = getattr(self.model, sort_by)
-            if sort_desc:
-                query = query.order_by(desc(sort_field))
-            else:
-                query = query.order_by(asc(sort_field))
+        # Support multiple sort fields separated by comma
+        sort_fields = [field.strip() for field in sort_by.split(',')]
+
+        for field in sort_fields:
+            if hasattr(self.model, field):
+                sort_field = getattr(self.model, field)
+                if sort_desc:
+                    query = query.order_by(desc(sort_field))
+                else:
+                    query = query.order_by(asc(sort_field))
 
         return query
 
